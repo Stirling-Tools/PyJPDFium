@@ -1,0 +1,40 @@
+[build-system]
+requires = ["scikit-build-core>=0.11", "nanobind>=2.9"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "pyjpdfium"
+version = "0.1.0.dev0"
+description = "Python bindings to JPDFium's native PDF core. No JVM required."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+authors = [{ name = "Stirling Tools" }]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: C++",
+    "Topic :: Multimedia :: Graphics :: Graphics Conversion",
+]
+dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[project.urls]
+Source = "https://github.com/Stirling-Tools/PyJPDFium"
+
+[tool.scikit-build]
+minimum-version = "0.11"
+build-dir = "build/{wheel_tag}"
+wheel.packages = ["src/pyjpdfium"]
+cmake.build-type = "Release"
+
+[tool.scikit-build.cmake.define]
+JPDFIUM_NATIVE_DIR = { env = "JPDFIUM_NATIVE_DIR", default = "" }
+JPDFIUM_INCLUDE_DIR = { env = "JPDFIUM_INCLUDE_DIR", default = "" }
+PYJPDFIUM_BUNDLE_NATIVES = { env = "PYJPDFIUM_BUNDLE_NATIVES", default = "OFF" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["native: needs the real JPDFium native core"]

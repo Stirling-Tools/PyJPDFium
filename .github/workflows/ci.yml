@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request: {}
+  workflow_dispatch:
+    inputs:
+      jpdfium-ref:
+        description: JPDFium ref providing the safe jpdf_* core
+        default: feat/native-safe-domain
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Until the safe API lands on JPDFium main, build the core from its feature branch.
+  JPDFIUM_REF: ${{ github.event.inputs.jpdfium-ref || 'feat/native-safe-domain' }}
+
+jobs:
+  unit:
+    name: Unit (no natives) / ${{ matrix.os }} / py${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ['3.10', '3.13']
+    steps:
+      - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install "pytest>=8"
+      - name: Unit tests
+        env:
+          PYTHONPATH: src
+        run: python -m pytest tests/unit -q
+
+  native-linux:
+    name: Real native core / linux-x64
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a # v7.0.1
+      - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a # v7.0.1
+        with:
+          repository: Stirling-Tools/JPDFium
+          ref: ${{ env.JPDFIUM_REF }}
+          path: jpdfium
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Install native build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build pkg-config \
+            libpcre2-dev libfreetype6-dev libharfbuzz-dev libicu-dev \
+            libqpdf-dev libpugixml-dev libunibreak-dev lld patchelf
+
+      - name: Fetch pinned PDFium and verify its published digest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=$(grep -v '^#' jpdfium/native/pdfium.version | grep -v '^$' | head -n1)
+          ASSET=pdfium-linux-x64.tar.gz
+          gh release download "$TAG" -R Stirling-Tools/JPDFium -p "$ASSET" -D "$RUNNER_TEMP"
+          DIGEST=$(gh api "repos/Stirling-Tools/JPDFium/releases/tags/$TAG" \
+            --jq ".assets[] | select(.name == \"$ASSET\") | .digest")
+          echo "${DIGEST#sha256:}  $RUNNER_TEMP/$ASSET" | sha256sum -c -
+          mkdir -p jpdfium/native/pdfium
+          tar -xzf "$RUNNER_TEMP/$ASSET" -C jpdfium/native/pdfium
+
+      - name: Build the JPDFium core
+        run: bash jpdfium/native/build-real.sh
+
+      - name: Native core tests
+        run: ctest --test-dir jpdfium/native/build-real --output-on-failure
+
+      - name: Build pyjpdfium
+        env:
+          JPDFIUM_NATIVE_DIR: ${{ github.workspace }}/jpdfium/native/dist/linux-x64
+          JPDFIUM_INCLUDE_DIR: ${{ github.workspace }}/jpdfium/native/bridge/include
+        run: |
+          python -m pip install "scikit-build-core>=0.11" "nanobind>=2.9" "pytest>=8"
+          python -m pip install --no-build-isolation .
+
+      - name: Python tests (unit + native)
+        env:
+          PYJPDFIUM_NATIVE_DIR: ${{ github.workspace }}/jpdfium/native/dist/linux-x64
+        run: |
+          # Native tests skip when the extension is missing; fail loudly here instead.
+          python -c "import pyjpdfium; print(pyjpdfium.runtime_info())"
+          python -m pytest -q -rs
