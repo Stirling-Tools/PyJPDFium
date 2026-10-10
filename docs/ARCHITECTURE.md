@@ -49,5 +49,5 @@ pixels, so it stays valid after the bitmap, page or document is closed.
 
 ## Isolation
 
-The native core runs in-process. It removes the JVM, not the crash domain: a native fault ends the
-interpreter. Untrusted or hard-budget jobs should run in a worker process.
+The native core runs in-process, so it shares the interpreter's process. Jobs that need their own
+memory or time limits can run in a worker process.
