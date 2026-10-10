@@ -97,3 +97,11 @@ jobs:
           # Native tests skip when the extension is missing; fail loudly here instead.
           python -c "import pyjpdfium; print(pyjpdfium.runtime_info())"
           python -m pytest -q -rs
+
+      - name: Raster parity with OCRmyPDF's pypdfium rasterizer
+        env:
+          PYJPDFIUM_NATIVE_DIR: ${{ github.workspace }}/jpdfium/native/dist/linux-x64
+        run: |
+          python -m pip install --require-hashes --only-binary=:all: -r tests/parity/requirements.txt
+          export PYJPDFIUM_PARITY_SRC="$(python tests/parity/fetch_reference.py "$RUNNER_TEMP/parity")"
+          python -m pytest tests/parity -q -rs

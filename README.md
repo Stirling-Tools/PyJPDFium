@@ -7,8 +7,8 @@ PyJPDFium is a thin [nanobind](https://github.com/wjakob/nanobind) binding over 
 `jpdf_*` C API. The native core, not Python or the GIL, owns PDFium serialization, object
 lifetimes and handle validation, so the same rules hold for the Java and Python bindings.
 
-Status: early development. This first pass covers documents, pages, rendering and transactional
-PNG output.
+Status: early development. Covered so far: documents, pages, rendering, transactional PNG output,
+OCRmyPDF-compatible page rasterization and perspective rectification.
 
 ```python
 import pyjpdfium
@@ -18,6 +18,10 @@ with pyjpdfium.open_document("input.pdf") as document:
         page.render("page.png", dpi=(300, 300))   # atomic publish; failure leaves page.png as-is
         with page.render(dpi=150, pixel_format="gray") as bitmap:
             pixels = bitmap.view()                # zero-copy, read-only, shape (h, w)
+            crop, geometry = bitmap.rectify([(40, 30), (300, 42), (296, 90), (36, 80)])
+
+# OCRmyPDF's rasterize_pdf_page contract, natively (see JPDFium docs/design/RASTER.md).
+pyjpdfium.rasterize_page("input.pdf", 0, "page.png", device="pnggray", raster_dpi=300)
 ```
 
 ## Behaviour
@@ -50,5 +54,8 @@ PYJPDFIUM_NATIVE_DIR=$JPDFIUM_NATIVE_DIR pytest
 `PYJPDFIUM_RENDERER` selects `auto` (default), `agg` or `skia`.
 
 Native tests (`-m native`) need the real core and are skipped when the extension is not built.
+Raster parity with OCRmyPDF's own rasterizer is opt-in: install `tests/parity/requirements.txt`
+(hash-pinned), set `PYJPDFIUM_PARITY_SRC` to the output of `tests/parity/fetch_reference.py`, and
+run `pytest tests/parity`.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design.

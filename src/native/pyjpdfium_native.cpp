@@ -6,11 +6,13 @@
 #include <nanobind/stl/optional.h>
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/tuple.h>
+#include <nanobind/stl/vector.h>
 
 #include <cstdint>
 #include <optional>
 #include <string>
 #include <tuple>
+#include <vector>
 
 #include "jpdfium_api.h"
 
@@ -82,6 +84,10 @@ bool struct_sizes_match() {
         {JPDF_STRUCT_BITMAP_INFO, sizeof(jpdf_bitmap_info)},
         {JPDF_STRUCT_BITMAP_VIEW, sizeof(jpdf_bitmap_view)},
         {JPDF_STRUCT_WRITE_OPTIONS, sizeof(jpdf_write_options)},
+        {JPDF_STRUCT_RASTER_OPTIONS, sizeof(jpdf_raster_options)},
+        {JPDF_STRUCT_RASTER_RESULT, sizeof(jpdf_raster_result)},
+        {JPDF_STRUCT_RECTIFY_OPTIONS, sizeof(jpdf_rectify_options)},
+        {JPDF_STRUCT_RECTIFY_RESULT, sizeof(jpdf_rectify_result)},
     };
     for (const auto& pair : expected) {
         if (jpdf_abi_struct_size(static_cast<int32_t>(pair[0])) != pair[1]) return false;
@@ -269,4 +275,53 @@ NB_MODULE(_native, m) {
     });
     m.def("bitmap_close",
           [](jpdf_handle bitmap) { run([&] { return jpdf_bitmap_close(bitmap); }); });
+    m.def("bitmap_rectify", [](jpdf_handle bitmap, const std::vector<double>& quad, int32_t width,
+                               int32_t height, int32_t interpolation, int32_t border,
+                               uint64_t max_pixels) {
+        if (quad.size() != 8) throw nb::value_error("quad needs 8 coordinates");
+        jpdf_rectify_options o{};
+        o.struct_size = sizeof(o);
+        o.width = width;
+        o.height = height;
+        o.interpolation = interpolation;
+        o.border = border;
+        o.max_pixels = max_pixels;
+        jpdf_rectify_result r{};
+        r.struct_size = sizeof(r);
+        jpdf_handle out = 0;
+        run([&] { return jpdf_bitmap_rectify(bitmap, quad.data(), &o, &out, &r); });
+        return std::make_tuple(out, std::vector<double>(r.quad, r.quad + 8),
+                               std::vector<double>(r.to_source, r.to_source + 9));
+    });
+
+    m.def("rasterize_page_file",
+          [](const std::string& path, int32_t page_index, int32_t device, double dpi_x,
+             double dpi_y, double out_dpi_x, double out_dpi_y, int32_t rotation_ccw,
+             uint32_t flags, uint64_t max_pixels, std::optional<std::string> password,
+             const std::string& output, bool durable, int32_t png_compression,
+             uint64_t max_bytes) {
+              jpdf_raster_options o{};
+              o.struct_size = sizeof(o);
+              o.flags = flags;
+              o.raster_dpi_x = dpi_x;
+              o.raster_dpi_y = dpi_y;
+              o.output_dpi_x = out_dpi_x;
+              o.output_dpi_y = out_dpi_y;
+              o.rotation_ccw = rotation_ccw;
+              o.device = device;
+              o.max_pixels = max_pixels;
+              o.password = password ? password->c_str() : nullptr;
+              jpdf_write_options w = write_options(durable, png_compression, max_bytes);
+              jpdf_raster_result r{};
+              r.struct_size = sizeof(r);
+              run([&] {
+                  return jpdf_rasterize_page_file(path.c_str(), page_index, &o, output.c_str(),
+                                                  &w, &r);
+              });
+              return std::make_tuple(r.width, r.height, r.bits_per_pixel, r.dpi_x, r.dpi_y);
+          },
+          nb::arg("path"), nb::arg("page_index"), nb::arg("device"), nb::arg("dpi_x"),
+          nb::arg("dpi_y"), nb::arg("out_dpi_x"), nb::arg("out_dpi_y"), nb::arg("rotation_ccw"),
+          nb::arg("flags"), nb::arg("max_pixels"), nb::arg("password").none(), nb::arg("output"),
+          nb::arg("durable"), nb::arg("png_compression"), nb::arg("max_bytes"));
 }

@@ -38,3 +38,4 @@ PYJPDFIUM_BUNDLE_NATIVES = { env = "PYJPDFIUM_BUNDLE_NATIVES", default = "OFF" }
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = ["native: needs the real JPDFium native core"]
+norecursedirs = ["parity"]

@@ -5,12 +5,20 @@ from __future__ import annotations
 import os
 import threading
 import weakref
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Union
 
 from ._loader import native
 from .errors import InvalidArgumentError, PyJPDFiumError, StaleHandleError
-from .models import BitmapInfo, PageSize, PixelFormat, RenderFlags
+from .models import (
+    BitmapInfo,
+    Border,
+    Interpolation,
+    PageSize,
+    PixelFormat,
+    RectifyResult,
+    RenderFlags,
+)
 
 StrPath = Union[str, "os.PathLike[str]"]
 Dpi = Union[float, "tuple[float, float]"]
@@ -223,6 +231,37 @@ class Bitmap(_Handle):
             -1 if png_compression is None else png_compression,
             max_bytes or _NO_LIMIT,
         )
+
+    def rectify(
+        self,
+        quad: "Sequence[tuple[float, float]] | Sequence[float]",
+        *,
+        size: tuple[int, int] | None = None,
+        interpolation: Interpolation | str = Interpolation.BILINEAR,
+        border: Border | str = Border.WHITE,
+        max_pixels: int | None = None,
+    ) -> tuple[Bitmap, RectifyResult]:
+        """Perspective-corrects a quad (4 corners in source pixels, any order) into a new bitmap.
+
+        Without ``size`` the output takes PaddleOCR's truncated lengths of the longer opposite
+        edges. The result maps output pixels back to source pixels.
+        """
+        values = list(quad)
+        if values and isinstance(values[0], (tuple, list)):
+            flat = [float(c) for point in values for c in point]
+        else:
+            flat = [float(v) for v in values]
+        if isinstance(interpolation, str):
+            interpolation = Interpolation[interpolation.upper()]
+        if isinstance(border, str):
+            border = Border[border.upper()]
+        width, height = size if size is not None else (0, 0)
+        token, corners, to_source = native().bitmap_rectify(
+            self._require_open(), flat, width, height, int(interpolation), int(border),
+            max_pixels or 0,
+        )
+        points = tuple((corners[i], corners[i + 1]) for i in range(0, 8, 2))
+        return Bitmap(token), RectifyResult(points, tuple(to_source))
 
     def __repr__(self) -> str:
         state = "closed" if self.closed else "open"
