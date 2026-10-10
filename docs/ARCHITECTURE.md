@@ -7,6 +7,10 @@ PyJPDFium is a peer of JPDFium's Java binding. Both bind one safe native C API,
 - Object lifetime: generation-checked handles, parent retention, `BUSY` instead of partial close.
 - Output safety: staged, bounded, atomically published files.
 
+JPDFium's Java binding reaches PDFium through generated `jpdf_guard_*` shims admitted by the same
+domain, so both bindings can run in one process without a second serializer, provided they load
+the same `libjpdfium` file.
+
 The full contracts live in JPDFium's `docs/design/` (`ARCHITECTURE.md`, `NATIVE_ABI.md`,
 `LIFETIME.md`, `CALLBACKS.md`, `CAPABILITIES.md`).
 

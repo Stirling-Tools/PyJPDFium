@@ -30,8 +30,9 @@ with pyjpdfium.open_document("input.pdf") as document:
   leaves the document usable.
 - Bitmaps are independent of their page and document, and a `view()` keeps its pixels alive even
   after the bitmap is closed.
-- One process uses one native core. Mixing it with JPDFium's legacy Java bridge in the same
-  process is refused.
+- One process uses one native core. JPDFium's Java binding is admitted by the same native
+  domain, so the two can share a process only when both load the same `libjpdfium` file; the
+  loader refuses a second copy.
 
 ## Building
 
