@@ -16,9 +16,16 @@ the two disagree. It produces PNG only: `jpeg`, `jpeggray` and `tiff` devices ar
 `png256` is written as RGB. JPDFium's `docs/design/RASTER.md` lists every deviation and the
 measured pixel parity.
 
+## Text layers
+
+`write_text_layer` writes the text-only PDF OCRmyPDF's `generate_pdf` hook returns, laid out as
+OCRmyPDF 17.13's renderer lays out invisible text. OCRmyPDF's own sandwich graft accepts it, and
+pypdfium2, qpdf and fontTools read it back (JPDFium's `docs/design/TEXT_LAYER.md`). Right-to-left
+scripts raise `UnsupportedError` until the multilingual writer lands.
+
 ## Not in this release
 
-- OCR, text-layer writing and the OCRmyPDF plugin.
+- OCR and the OCRmyPDF plugin.
 - PDF/A output: rejected by design.
 - Opening from bytes or file-like objects, saving or editing documents.
 - Free-threaded CPython builds are untested.

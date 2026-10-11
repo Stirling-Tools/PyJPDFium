@@ -180,6 +180,10 @@ class Page(_Handle):
         )
         return None
 
+    def text(self) -> str:
+        """The page text in PDFium's extraction order, with its generated spaces and line breaks."""
+        return native().page_text(self._require_open())
+
     def __repr__(self) -> str:
         state = "closed" if self.closed else "open"
         return f"<Page {self.index} of {self.document.path!r} {state}>"

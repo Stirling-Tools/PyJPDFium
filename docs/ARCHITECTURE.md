@@ -17,7 +17,7 @@ The full contracts live in JPDFium's `docs/design/` (`ARCHITECTURE.md`, `NATIVE_
 ## Layers
 
 ```text
-pyjpdfium            pure Python API: Document, Page, Bitmap, runtime_*
+pyjpdfium            pure Python API: Document, Page, Bitmap, write_text_layer, runtime_*
 pyjpdfium._loader    lazy load, core pinning, identity checks, runtime init
 pyjpdfium._native    nanobind module: one function per jpdf_* call, GIL released around it
 libjpdfium           the shared native core (never compiled into the extension)

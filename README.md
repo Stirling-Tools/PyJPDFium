@@ -7,8 +7,9 @@ PyJPDFium is a thin [nanobind](https://github.com/wjakob/nanobind) binding over 
 `jpdf_*` C API. The native core, not Python or the GIL, owns PDFium serialization, object
 lifetimes and handle validation, so the same rules hold for the Java and Python bindings.
 
-Status: early development. Covered so far: documents, pages, rendering, transactional PNG output,
-OCRmyPDF-compatible page rasterization and perspective rectification.
+Status: early development. Covered so far: documents, pages, rendering, page text, transactional
+PNG output, OCRmyPDF-compatible page rasterization, perspective rectification and invisible text
+layers.
 
 ```python
 import pyjpdfium
@@ -22,6 +23,13 @@ with pyjpdfium.open_document("input.pdf") as document:
 
 # OCRmyPDF's rasterize_pdf_page contract, natively (see JPDFium docs/design/RASTER.md).
 pyjpdfium.rasterize_page("input.pdf", 0, "page.png", device="pnggray", raster_dpi=300)
+
+# The text-only PDF of OCRmyPDF's generate_pdf hook (see JPDFium docs/design/TEXT_LAYER.md).
+from pyjpdfium import TextLine, TextWord
+
+line = TextLine((300, 300, 1500, 400), (TextWord("Hello", (300, 300, 800, 400)),
+                                        TextWord("world", (900, 300, 1500, 400))))
+pyjpdfium.write_text_layer("text.pdf", [line], image_size=(2550, 3300), dpi=300)
 ```
 
 ## Behaviour
@@ -54,8 +62,8 @@ PYJPDFIUM_NATIVE_DIR=$JPDFIUM_NATIVE_DIR pytest
 `PYJPDFIUM_RENDERER` selects `auto` (default), `agg` or `skia`.
 
 Native tests (`-m native`) need the real core and are skipped when the extension is not built.
-Raster parity with OCRmyPDF's own rasterizer is opt-in: install `tests/parity/requirements.txt`
-(hash-pinned), set `PYJPDFIUM_PARITY_SRC` to the output of `tests/parity/fetch_reference.py`, and
-run `pytest tests/parity`.
+Parity with OCRmyPDF's own rasterizer and sandwich graft is opt-in: install
+`tests/parity/requirements.txt` (hash-pinned), set `PYJPDFIUM_PARITY_SRC` to the output of
+`tests/parity/fetch_reference.py`, and run `pytest tests/parity`.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design.

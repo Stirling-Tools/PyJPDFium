@@ -1,7 +1,7 @@
 """Downloads OCRmyPDF's source (pinned, hash-checked) for the raster parity tests.
 
-The wheel is unpacked, never installed: the tests execute only its pypdfium rasterizer and the
-pure-Python Resolution class, against stubs for everything else.
+The wheel is unpacked, never installed: the tests execute only its pypdfium rasterizer, the
+pure-Python Resolution class and its sandwich graft, against stubs for everything else.
 
   python tests/parity/fetch_reference.py [cache_dir]   # prints the source directory
 """
@@ -21,7 +21,7 @@ URL = (
     f"ocrmypdf-{VERSION}-py3-none-any.whl"
 )
 SHA256 = "f4d226f361c4b1498637f9c674daebfaf84223b84d9eba6bfba60a3ba260f9de"
-NEEDED = ("ocrmypdf/builtin_plugins/pypdfium.py", "ocrmypdf/helpers.py")
+NEEDED = ("ocrmypdf/builtin_plugins/pypdfium.py", "ocrmypdf/helpers.py", "ocrmypdf/_graft.py")
 
 
 def fetch(cache: Path) -> Path:

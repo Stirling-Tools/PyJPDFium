@@ -112,6 +112,25 @@ class RasterResult:
     dpi: tuple[float, float]
 
 
+Box = tuple[float, float, float, float]
+
+
+@dataclass(frozen=True)
+class TextWord:
+    """A word and its box ``(x0, y0, x1, y1)`` in image pixels, origin top-left."""
+
+    text: str
+    box: Box
+
+
+@dataclass(frozen=True)
+class TextLine:
+    """Words in reading order. The line box height sets the font size; it must be positive."""
+
+    box: Box
+    words: tuple[TextWord, ...]
+
+
 @dataclass(frozen=True)
 class RectifyResult:
     """Corners as used (top-left, top-right, bottom-right, bottom-left) and the inverse map."""

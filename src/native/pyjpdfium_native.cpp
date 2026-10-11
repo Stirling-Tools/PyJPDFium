@@ -8,6 +8,7 @@
 #include <nanobind/stl/tuple.h>
 #include <nanobind/stl/vector.h>
 
+#include <climits>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -88,6 +89,9 @@ bool struct_sizes_match() {
         {JPDF_STRUCT_RASTER_RESULT, sizeof(jpdf_raster_result)},
         {JPDF_STRUCT_RECTIFY_OPTIONS, sizeof(jpdf_rectify_options)},
         {JPDF_STRUCT_RECTIFY_RESULT, sizeof(jpdf_rectify_result)},
+        {JPDF_STRUCT_TEXT_WORD, sizeof(jpdf_text_word)},
+        {JPDF_STRUCT_TEXT_LINE, sizeof(jpdf_text_line)},
+        {JPDF_STRUCT_TEXT_LAYER_OPTIONS, sizeof(jpdf_text_layer_options)},
     };
     for (const auto& pair : expected) {
         if (jpdf_abi_struct_size(static_cast<int32_t>(pair[0])) != pair[1]) return false;
@@ -129,6 +133,58 @@ nb::bytes bitmap_copy(jpdf_handle bitmap) {
                                        &written);
     });
     return out;
+}
+
+std::string page_text(jpdf_handle page) {
+    uint64_t needed = 0;
+    run([&] { return jpdf_page_get_text(page, nullptr, 0, &needed); });
+    std::string text(static_cast<size_t>(needed), '\0');
+    run([&] { return jpdf_page_get_text(page, text.data(), needed, &needed); });
+    text.resize(text.empty() ? 0 : text.size() - 1);
+    return text;
+}
+
+using Box = std::tuple<double, double, double, double>;
+
+// Owned copies are built with the GIL held; the native call then only reads them.
+void text_layer_write(const std::string& output, int32_t image_width, int32_t image_height,
+                      double dpi_x, double dpi_y,
+                      const std::vector<std::tuple<Box, int32_t>>& lines,
+                      const std::vector<std::tuple<std::string, Box>>& words, bool durable,
+                      uint64_t max_bytes) {
+    jpdf_text_layer_options o{};
+    o.struct_size = sizeof(o);
+    o.image_width = image_width;
+    o.image_height = image_height;
+    o.dpi_x = dpi_x;
+    o.dpi_y = dpi_y;
+    o.font = JPDF_FONT_GLYPHLESS;
+    std::vector<jpdf_text_line> native_lines(lines.size());
+    for (size_t i = 0; i < lines.size(); ++i) {
+        jpdf_text_line& l = native_lines[i];
+        l.struct_size = sizeof(l);
+        std::tie(l.x0, l.y0, l.x1, l.y1) = std::get<0>(lines[i]);
+        l.word_count = std::get<1>(lines[i]);
+    }
+    std::vector<jpdf_text_word> native_words(words.size());
+    for (size_t i = 0; i < words.size(); ++i) {
+        jpdf_text_word& w = native_words[i];
+        w.struct_size = sizeof(w);
+        w.text_utf8 = std::get<0>(words[i]).c_str();
+        std::tie(w.x0, w.y0, w.x1, w.y1) = std::get<1>(words[i]);
+    }
+    if (native_lines.size() > INT32_MAX || native_words.size() > INT32_MAX) {
+        throw nb::value_error("too many lines or words");
+    }
+    jpdf_write_options w{};
+    w.struct_size = sizeof(w);
+    w.flags = durable ? JPDF_WRITE_DURABLE : 0u;
+    w.max_bytes = max_bytes;
+    run([&] {
+        return jpdf_text_layer_write(&o, native_lines.data(),
+                                     static_cast<int32_t>(native_lines.size()), native_words.data(),
+                                     static_cast<int32_t>(native_words.size()), output.c_str(), &w);
+    });
 }
 
 using PixelArray = nb::ndarray<nb::memview, const uint8_t, nb::ro>;
@@ -240,6 +296,8 @@ NB_MODULE(_native, m) {
         return std::make_tuple(info.index, info.width_pt, info.height_pt, info.rotation);
     });
 
+    m.def("page_text", &page_text);
+
     m.def("page_render", [](jpdf_handle page, uint32_t flags, double dpi_x, double dpi_y,
                             int32_t width, int32_t height, int32_t pixel_format,
                             uint64_t max_pixels) {
@@ -293,6 +351,10 @@ NB_MODULE(_native, m) {
         return std::make_tuple(out, std::vector<double>(r.quad, r.quad + 8),
                                std::vector<double>(r.to_source, r.to_source + 9));
     });
+
+    m.def("text_layer_write", &text_layer_write, nb::arg("output"), nb::arg("image_width"),
+          nb::arg("image_height"), nb::arg("dpi_x"), nb::arg("dpi_y"), nb::arg("lines"),
+          nb::arg("words"), nb::arg("durable"), nb::arg("max_bytes"));
 
     m.def("rasterize_page_file",
           [](const std::string& path, int32_t page_index, int32_t device, double dpi_x,

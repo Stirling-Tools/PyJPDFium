@@ -1,6 +1,17 @@
-# Reference stack for raster parity tests (Linux x86_64, CPython 3.12). Install with
+# Reference stack for the parity tests (Linux x86_64, CPython 3.12). Install with
 #   pip install --require-hashes --only-binary=:all: -r tests/parity/requirements.txt
 pillow==12.3.0 \
     --hash=sha256:78cb2c6865a35ab8ff8b75fd122f6033b92a62c82801110e48ddd6c936a45d91
 pypdfium2==5.14.0 \
     --hash=sha256:11f281613fa22313d9c7ab89947665e84eccf8ebe40e1198a84a88352305648d
+# Text layers: OCRmyPDF 17.13's own graft needs pikepdf >= 10.15; fontTools parses the font.
+pikepdf==10.15.0 \
+    --hash=sha256:203053af0efa8777ebed505f7cc4677e66c0068cf25e67144a782c0e360f18b4
+lxml==6.1.2 \
+    --hash=sha256:9477e14217c212e6023c994a71a1a349db19b0e10fd5bf189666b281ae63b1fd \
+    --hash=sha256:04cf9e3f4ee9cab9d9ba05401bef8668840fa9620fcd4d8e85a2d2fd0b0fa960
+packaging==26.2 \
+    --hash=sha256:5fc45236b9446107ff2415ce77c807cee2862cb6fac22b8a73826d0693b0980e
+fonttools==4.64.0 \
+    --hash=sha256:66a83f93579fb3493e458c4449d1d566a7b2a1c7b19915cd0fa3c9b8b5a8540b \
+    --hash=sha256:4a05783ff54ce4c7a28f18e5772efdf63c219374bd9ffc55452182e1cef8be60
