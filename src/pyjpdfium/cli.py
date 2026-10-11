@@ -147,6 +147,33 @@ def _loaded_libraries() -> list[str]:
     return [p for p in _mapped_libraries() if Path(p).name.startswith(names)]
 
 
+def _check_bundle(report: _Report, directory: Path) -> None:
+    """Staged natives: every file matches its manifest, and nothing native loads from elsewhere."""
+    from .profiles import sha256_file
+
+    manifest = directory / "natives-manifest.json"
+    if not manifest.is_file():
+        report.note("bundle", "no natives-manifest.json: not staged by tools/stage_natives.py")
+        return
+    entries = json.loads(manifest.read_text(encoding="utf-8"))["files"]
+    changed = [e["name"] for e in entries
+               if not (directory / e["name"]).is_file()
+               or sha256_file(directory / e["name"]) != e["sha256"]]
+    if changed:
+        report.problem("bundle", f"{len(changed)} file(s) differ from the manifest: {changed[:3]}")
+    else:
+        report.ok("bundle", f"{len(entries)} files match natives-manifest.json")
+    root = directory.resolve()
+    outside = [p for p in _loaded_libraries() if not Path(p).is_relative_to(root)]
+    if outside:
+        report.problem("loaded", f"native libraries from outside {root}: {outside}")
+    identity = directory / "identity.json"
+    if identity.is_file():
+        built = json.loads(identity.read_text(encoding="utf-8"))
+        report.ok("identity", f"pyjpdfium {built['pyjpdfium']['revision'][:12]}, "
+                              f"jpdfium {built['jpdfium']['revision'][:12]}, {built['pdfium']}")
+
+
 def cmd_doctor(args: argparse.Namespace) -> int:
     """Reports identity, capabilities, profiles and dependencies; recognizes no document."""
     from . import _loader
@@ -182,6 +209,8 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     # Listed once both modules are in, so the identities cover everything that loaded.
     for path in _loaded_libraries():
         report.ok("loaded", f"{path} sha256 {sha256_file(Path(path))[:16]}")
+    if directory is not None:
+        _check_bundle(report, directory)
     profile_dir = Path(args.profile) if args.profile else default_profile_dir()
     if profile_dir is None:
         report.note("ocr profile", "none given; pass --profile or set PYJPDFIUM_OCR_PROFILE")

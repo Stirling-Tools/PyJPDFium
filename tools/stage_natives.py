@@ -7,6 +7,9 @@ onnxruntime wheels ship libonnxruntime.so.1. The dynamic linker binds a dependen
 library with the same soname, so JPDFium's core would call into another PDFium. Staging gives
 our copies their own sonames, points RUNPATH at the staging directory only, and writes
 natives-manifest.json with every file's digest before and after. Linux only; needs patchelf.
+
+JPDFium stages its optional OCR module apart from the core, in dist/ocr-<platform>; when that
+sibling of JPDFIUM_DIST exists, its libraries are staged too.
 """
 
 from __future__ import annotations
@@ -44,6 +47,11 @@ def is_elf(path: Path) -> bool:
 
 
 def stage(source: Path, dest: Path) -> dict:
+    ocr = source.parent / f"ocr-{source.name}"
+    return stage_dirs([source, *([ocr] if ocr.is_dir() else [])], dest)
+
+
+def stage_dirs(sources: list[Path], dest: Path) -> dict:
     if not sys.platform.startswith("linux"):
         raise SystemExit("stage_natives.py stages Linux natives only")
     if shutil.which("patchelf") is None:
@@ -54,7 +62,7 @@ def stage(source: Path, dest: Path) -> dict:
     staged: dict[str, Path] = {}
     origins: dict[str, Path] = {}
     # Real files only, each under its soname, so no symlink is needed after staging.
-    for path in sorted(source.iterdir()):
+    for path in sorted(p for source in sources for p in source.iterdir()):
         if path.is_symlink() or not path.is_file():
             continue
         name = path.name
@@ -91,7 +99,8 @@ def stage(source: Path, dest: Path) -> dict:
             "source": origins[name].name,
             "source_sha256": sha256(origins[name]),
         })
-    manifest = {"source": str(source.resolve()), "renames": RENAMES, "files": entries}
+    manifest = {"sources": [str(s.resolve()) for s in sources], "renames": RENAMES,
+                "files": entries}
     (dest / MANIFEST).write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     return manifest
 

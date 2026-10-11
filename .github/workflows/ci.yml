@@ -61,7 +61,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential cmake ninja-build pkg-config \
             libpcre2-dev libfreetype6-dev libharfbuzz-dev libicu-dev \
-            libqpdf-dev libpugixml-dev libunibreak-dev lld patchelf libgl1 poppler-utils
+            libqpdf-dev libpugixml-dev libunibreak-dev lld patchelf libgl1 poppler-utils icu-devtools
 
       - name: Fetch pinned PDFium and verify its published digest
         env:
@@ -91,9 +91,13 @@ jobs:
           JPDFIUM_OCR_PROFILE: ${{ runner.temp }}/ocr-profile
         run: ctest --test-dir jpdfium/native/build-real --output-on-failure
 
+      # One layout for tests and wheels: own sonames, with the OCR module beside the core.
+      - name: Stage the natives for Python
+        run: python tools/stage_natives.py jpdfium/native/dist/linux-x64 "$RUNNER_TEMP/natives"
+
       - name: Build pyjpdfium
         env:
-          JPDFIUM_NATIVE_DIR: ${{ github.workspace }}/jpdfium/native/dist/linux-x64
+          JPDFIUM_NATIVE_DIR: ${{ runner.temp }}/natives
           JPDFIUM_INCLUDE_DIR: ${{ github.workspace }}/jpdfium/native/bridge/include
         run: |
           python -m pip install "scikit-build-core>=0.11" "nanobind>=2.9" "pytest>=8"
@@ -102,7 +106,7 @@ jobs:
 
       - name: Python tests (unit + native)
         env:
-          PYJPDFIUM_NATIVE_DIR: ${{ github.workspace }}/jpdfium/native/dist/linux-x64
+          PYJPDFIUM_NATIVE_DIR: ${{ runner.temp }}/natives
           PYJPDFIUM_OCR_PROFILE: ${{ runner.temp }}/ocr-profile
         run: |
           # Native tests skip when the extension is missing; fail loudly here instead.
@@ -111,7 +115,7 @@ jobs:
 
       - name: Parity with OCRmyPDF and independent text extractors
         env:
-          PYJPDFIUM_NATIVE_DIR: ${{ github.workspace }}/jpdfium/native/dist/linux-x64
+          PYJPDFIUM_NATIVE_DIR: ${{ runner.temp }}/natives
         run: |
           python -m pip install --require-hashes --only-binary=:all: -r tests/parity/requirements.txt
           export PYJPDFIUM_PARITY_SRC="$(python tests/parity/fetch_reference.py "$RUNNER_TEMP/parity")"
@@ -119,7 +123,7 @@ jobs:
 
       - name: OCR parity with the official PaddleOCR pipeline
         env:
-          PYJPDFIUM_NATIVE_DIR: ${{ github.workspace }}/jpdfium/native/dist/linux-x64
+          PYJPDFIUM_NATIVE_DIR: ${{ runner.temp }}/natives
           PYJPDFIUM_OCR_PROFILE: ${{ runner.temp }}/ocr-profile
           PYJPDFIUM_OCR_REFERENCE: ${{ runner.temp }}/ocr-reference/bin/python
         run: |
@@ -130,14 +134,33 @@ jobs:
 
       - name: OCRmyPDF end to end with the pyjpdfium plugin
         env:
+          PYJPDFIUM_NATIVE_DIR: ${{ runner.temp }}/natives
           PYJPDFIUM_OCR_PROFILE: ${{ runner.temp }}/ocr-profile
           PYJPDFIUM_OCRMYPDF_PYTHON: ${{ runner.temp }}/ocrmypdf/bin/python
         run: |
-          # OCRmyPDF imports pypdfium2, so our natives need their own sonames in that process.
-          python tools/stage_natives.py jpdfium/native/dist/linux-x64 "$RUNNER_TEMP/natives"
-          export PYJPDFIUM_NATIVE_DIR="$RUNNER_TEMP/natives"
           python -m venv "$RUNNER_TEMP/ocrmypdf"
           "$RUNNER_TEMP/ocrmypdf/bin/pip" install --require-hashes --only-binary=:all: \
             -r tests/ocrmypdf/requirements.txt
           "$RUNNER_TEMP/ocrmypdf/bin/pip" install --no-deps "$RUNNER_TEMP"/wheel/pyjpdfium-*.whl
           python -m pytest tests/ocrmypdf tests/native/test_cli.py -q -rs
+
+      # The release closure: JPDFium's bundler and checks, then a fresh Ubuntu with no network.
+      - name: Wheel on a clean offline machine
+        run: |
+          bash jpdfium/native/build-minimal-icu.sh
+          python tools/build_wheel.py jpdfium "$RUNNER_TEMP/wheelhouse"
+          python -m pip download --require-hashes --only-binary=:all: \
+            -r tests/ocrmypdf/requirements.txt -d "$RUNNER_TEMP/ocrmypdf-wheels"
+          printf 'FROM ubuntu:24.04\nRUN apt-get update && apt-get install -y --no-install-recommends python3 python3-venv && rm -rf /var/lib/apt/lists/*\n' \
+            | docker build -t pyjpdfium-clean -
+          docker run --rm --network=none -v "$RUNNER_TEMP:/ci:ro" -v "$PWD:/src:ro" \
+            -e PYJPDFIUM_OCR_PROFILE=/ci/ocr-profile pyjpdfium-clean bash -c '
+              set -e
+              python3 -m venv /tmp/venv
+              /tmp/venv/bin/pip install -q --no-index /ci/wheelhouse/pyjpdfium-*.whl
+              /tmp/venv/bin/pip install -q --no-index --require-hashes --only-binary=:all: \
+                --find-links /ci/ocrmypdf-wheels -r /src/tests/ocrmypdf/requirements.txt
+              cd /tmp && /tmp/venv/bin/python -I /src/tests/clean_machine/check.py
+              bash /src/tests/clean_machine/prune.sh /ci/wheelhouse/pyjpdfium-*.whl \
+                /ci/ocrmypdf-wheels /src/tests/ocrmypdf/requirements.txt \
+                /src/tests/clean_machine/check.py'

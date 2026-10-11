@@ -92,4 +92,7 @@ Parity with OCRmyPDF's own rasterizer and sandwich graft is opt-in: install
 `PYJPDFIUM_OCRMYPDF_PYTHON`, a Python with `tests/ocrmypdf/requirements.txt` and pyjpdfium
 installed, and natives staged by `tools/stage_natives.py`.
 
+Self-contained wheels are built by `tools/build_wheel.py`
+([docs/PACKAGING.md](docs/PACKAGING.md)).
+
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design.

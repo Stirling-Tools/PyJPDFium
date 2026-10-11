@@ -72,7 +72,8 @@ else()
 endif()
 
 if(PYJPDFIUM_BUNDLE_NATIVES)
+    # The staged closure with its manifests and license texts (tools/build_wheel.py).
     install(DIRECTORY "${JPDFIUM_NATIVE_DIR}/" DESTINATION pyjpdfium/_libs
         FILES_MATCHING PATTERN "*.so*" PATTERN "*.dylib" PATTERN "*.dll"
-        PATTERN "native-libs.*")
+        PATTERN "*.json" PATTERN "licenses/*")
 endif()
