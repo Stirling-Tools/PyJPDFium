@@ -9,7 +9,7 @@ lifetimes and handle validation, so the same rules hold for the Java and Python 
 
 Status: early development. Covered so far: documents, pages, rendering, page text, transactional
 PNG output, OCRmyPDF-compatible page rasterization, perspective rectification, invisible text
-layers and OCR with PP-OCR models.
+layers in any script and direction, and OCR with PP-OCR models.
 
 ```python
 import pyjpdfium

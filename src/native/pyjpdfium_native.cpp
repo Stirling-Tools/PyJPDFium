@@ -3,11 +3,14 @@
 
 #include <nanobind/nanobind.h>
 #include <nanobind/ndarray.h>
+#include <nanobind/stl/array.h>
 #include <nanobind/stl/optional.h>
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/tuple.h>
 #include <nanobind/stl/vector.h>
 
+#include <algorithm>
+#include <array>
 #include <climits>
 #include <cstdint>
 #include <optional>
@@ -146,13 +149,14 @@ std::string page_text(jpdf_handle page) {
 }
 
 using Box = std::tuple<double, double, double, double>;
+using Quad = std::array<double, 8>;
 
 // Owned copies are built with the GIL held; the native call then only reads them.
 void text_layer_write(const std::string& output, int32_t image_width, int32_t image_height,
                       double dpi_x, double dpi_y,
-                      const std::vector<std::tuple<Box, int32_t>>& lines,
-                      const std::vector<std::tuple<std::string, Box>>& words, bool durable,
-                      uint64_t max_bytes) {
+                      const std::vector<std::tuple<Box, int32_t, uint32_t, Quad>>& lines,
+                      const std::vector<std::tuple<std::string, Box, uint32_t, Quad>>& words,
+                      bool durable, uint64_t max_bytes) {
     jpdf_text_layer_options o{};
     o.struct_size = sizeof(o);
     o.image_width = image_width;
@@ -166,6 +170,8 @@ void text_layer_write(const std::string& output, int32_t image_width, int32_t im
         l.struct_size = sizeof(l);
         std::tie(l.x0, l.y0, l.x1, l.y1) = std::get<0>(lines[i]);
         l.word_count = std::get<1>(lines[i]);
+        l.flags = std::get<2>(lines[i]);
+        std::copy(std::get<3>(lines[i]).begin(), std::get<3>(lines[i]).end(), l.quad);
     }
     std::vector<jpdf_text_word> native_words(words.size());
     for (size_t i = 0; i < words.size(); ++i) {
@@ -173,6 +179,8 @@ void text_layer_write(const std::string& output, int32_t image_width, int32_t im
         w.struct_size = sizeof(w);
         w.text_utf8 = std::get<0>(words[i]).c_str();
         std::tie(w.x0, w.y0, w.x1, w.y1) = std::get<1>(words[i]);
+        w.flags = std::get<2>(words[i]);
+        std::copy(std::get<3>(words[i]).begin(), std::get<3>(words[i]).end(), w.quad);
     }
     if (native_lines.size() > INT32_MAX || native_words.size() > INT32_MAX) {
         throw nb::value_error("too many lines or words");

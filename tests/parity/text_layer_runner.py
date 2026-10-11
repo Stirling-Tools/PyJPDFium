@@ -1,6 +1,7 @@
 """Reads or grafts a text layer with tools independent of JPDFium, in its own process.
 
 Usage: python -I text_layer_runner.py probe PDF [TERM ...]       # pypdfium2: text, boxes, render
+       python -I text_layer_runner.py extract PDF [PDF ...]      # pypdfium2 and pdfminer.six text
        python -I text_layer_runner.py font PDF                   # qpdf check, fontTools font parse
        python -I text_layer_runner.py graft SOURCE_DIR REQUEST    # OCRmyPDF's own sandwich graft
 Prints one JSON object. graft executes OCRmyPDF's _graft.py with the rest of OCRmyPDF stubbed.
@@ -52,6 +53,42 @@ def probe(path: str, terms: list[str]) -> dict:
     page.close()
     pdf.close()
     return result
+
+
+def extract(paths: list[str]) -> list[dict]:
+    """pypdfium2's text and character boxes, and pdfminer.six's text when it is installed."""
+    import pypdfium2 as pdfium
+    import pypdfium2.raw as raw
+
+    try:
+        from pdfminer.high_level import extract_text
+    except ImportError:
+        extract_text = None
+    results = []
+    for path in paths:
+        pdf = pdfium.PdfDocument(path)
+        page = pdf[0]
+        text = page.get_textpage()
+        chars, count, i = [], text.count_chars(), 0
+        while i < count:
+            code = raw.FPDFText_GetUnicode(text.raw, i)
+            generated = bool(raw.FPDFText_IsGenerated(text.raw, i))
+            left, bottom, right, top = text.get_charbox(i, loose=True)
+            if 0xD800 <= code < 0xDC00 and i + 1 < count:  # PDFium indexes UTF-16 units
+                low = raw.FPDFText_GetUnicode(text.raw, i + 1)
+                code = 0x10000 + ((code - 0xD800) << 10) + (low - 0xDC00)
+                i += 1
+            chars.append([chr(code), generated, left, bottom, right, top])
+            i += 1
+        results.append({
+            "pdfium": text.get_text_range(),
+            "chars": chars,
+            "pdfminer": extract_text(path) if extract_text else None,
+        })
+        text.close()
+        page.close()
+        pdf.close()
+    return results
 
 
 def font(path: str) -> dict:
@@ -151,6 +188,8 @@ def main() -> None:
     command, args = sys.argv[1], sys.argv[2:]
     if command == "probe":
         result = probe(args[0], args[1:])
+    elif command == "extract":
+        result = extract(args)
     elif command == "font":
         result = font(args[0])
     elif command == "graft":

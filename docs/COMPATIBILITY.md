@@ -20,8 +20,42 @@ measured pixel parity.
 
 `write_text_layer` writes the text-only PDF OCRmyPDF's `generate_pdf` hook returns, laid out as
 OCRmyPDF 17.13's renderer lays out invisible text. OCRmyPDF's own sandwich graft accepts it, and
-pypdfium2, qpdf and fontTools read it back (JPDFium's `docs/design/TEXT_LAYER.md`). Right-to-left
-scripts raise `UnsupportedError` until the multilingual writer lands.
+pypdfium2, qpdf and fontTools read it back (JPDFium's `docs/design/TEXT_LAYER.md`).
+
+Right-to-left and mixed-direction words are laid out by the Unicode bidi algorithm, and a
+`quad` on a `TextLine` or `TextWord` places rotated or skewed lines. Text is always passed in
+logical order. Explicit bidi embeddings, overrides and isolates raise `UnsupportedError`.
+
+### Multilingual qualification
+
+`tests/parity/test_multilingual_parity.py` writes 23 samples, each flat, rotated 15, 90 and 180
+degrees, and skewed. Every character box lands in its expected cell. Four extractors then read
+the text, and each must reach at least the level below. The levels are, from strongest to
+weakest:
+
+- exact: the same text;
+- NFC: equal after NFC normalization;
+- words: the same words in another order;
+- characters: the same characters, regrouped.
+
+| Extractor | Left-to-right | Right-to-left | Mixed directions |
+|---|---|---|---|
+| PDFium (JPDFium's and pypdfium2's) | exact; words when upside down | NFC when horizontal; words when rotated | characters |
+| pdfminer.six 20260107 | exact; characters at 90 degrees | exact; characters at 90 degrees | words; characters at 90 and 180 degrees |
+| poppler 24.02 `pdftotext` | exact; characters at 15 degrees | exact; characters at 15 and 180 degrees | characters |
+
+Most results beat their floor; flat right-to-left lines come back exact from all four. The
+weaker results come from the extractors' own layout analysis:
+
+- PDFium orders the words of upside-down lines, and of rotated right-to-left lines, by page
+  position.
+- PDFium can reorder Hebrew points, which NFC undoes.
+- At a direction change, PDFium and poppler may drop or move a space. PDFium also swaps paired
+  brackets in right-to-left text.
+- pdfminer.six splits vertical text into single characters.
+- poppler splits words on slanted baselines.
+
+Search in viewers built on these extractors follows the same pattern.
 
 ## OCR
 

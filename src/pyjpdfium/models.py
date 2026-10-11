@@ -113,22 +113,36 @@ class RasterResult:
 
 
 Box = tuple[float, float, float, float]
+Point = tuple[float, float]
+Quad = tuple[Point, Point, Point, Point]
 
 
 @dataclass(frozen=True)
 class TextWord:
-    """A word and its box ``(x0, y0, x1, y1)`` in image pixels, origin top-left."""
+    """A word and its box ``(x0, y0, x1, y1)`` in image pixels, origin top-left.
+
+    ``quad``, when given, places the word instead of the box: its corners top-left, top-right,
+    bottom-right, bottom-left as read. Text is in logical order, also for right-to-left scripts.
+    """
 
     text: str
     box: Box
+    quad: Quad | None = None
 
 
 @dataclass(frozen=True)
 class TextLine:
-    """Words in reading order. The line box height sets the font size; it must be positive."""
+    """Words in logical order. The line box height sets the font size; it must be positive.
+
+    ``quad`` replaces the box for rotated or skewed lines: text runs along its top-left to
+    top-right edge, and its height sets the font size. ``direction`` is ``"auto"`` (from the
+    first strong character), ``"ltr"`` or ``"rtl"``.
+    """
 
     box: Box
     words: tuple[TextWord, ...]
+    quad: Quad | None = None
+    direction: str = "auto"
 
 
 @dataclass(frozen=True)
@@ -146,6 +160,11 @@ class OcrLine:
         ys = [y for _, y in self.polygon]
         return min(xs), min(ys), max(xs), max(ys)
 
+    @property
+    def quad(self) -> Quad:
+        p = self.polygon
+        return (p[0], p[1], p[2], p[3])
+
 
 @dataclass(frozen=True)
 class OcrResult:
@@ -162,12 +181,14 @@ class OcrResult:
         return "\n".join(line.text for line in self.lines)
 
     def text_lines(self) -> tuple[TextLine, ...]:
-        """For write_text_layer: each line becomes one word spanning its box, never split."""
-        return tuple(
-            TextLine(line.box, (TextWord(line.text, line.box),))
-            for line in self.lines
-            if line.text.strip()
-        )
+        """For write_text_layer: each line becomes one word on its polygon, never split."""
+        out = []
+        for line in self.lines:
+            if not line.text.strip():
+                continue
+            quad = line.quad
+            out.append(TextLine(line.box, (TextWord(line.text, line.box, quad),), quad))
+        return tuple(out)
 
 
 @dataclass(frozen=True)

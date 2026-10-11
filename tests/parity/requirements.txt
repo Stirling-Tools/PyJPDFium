@@ -15,3 +15,9 @@ packaging==26.2 \
 fonttools==4.64.0 \
     --hash=sha256:66a83f93579fb3493e458c4449d1d566a7b2a1c7b19915cd0fa3c9b8b5a8540b \
     --hash=sha256:4a05783ff54ce4c7a28f18e5772efdf63c219374bd9ffc55452182e1cef8be60
+# Multilingual qualification: pdfminer.six reads text in content-stream order.
+pdfminer.six==20260107     --hash=sha256:366585ba97e80dffa8f00cebe303d2f381884d8637af4ce422f1df3ef38111a9
+charset-normalizer==3.5.2     --hash=sha256:3d31298449090ab8d47b7b1b2a555ff73cac7ed438a08b7ac160980c7ebed649
+cryptography==50.0.2     --hash=sha256:4061c0079120205fb760c58acab6443e217307dcf05e3702cf970e0689972856
+cffi==2.1.1     --hash=sha256:c1453022f490d2459a11819d83ad1d586e9ff65a12ac3e705ffebd46d3685dcf
+pycparser==3.11     --hash=sha256:51d5a8ba2be0bbe440b99d2112604c95bbbc3c2748a64260186c541e1729cd80

@@ -1,3 +1,4 @@
+import math
 import threading
 
 import pytest
@@ -74,14 +75,57 @@ def test_failed_write_keeps_the_destination(tmp_path):
     assert path.read_bytes() == b"previous"
 
 
+def test_right_to_left_and_mixed_lines_read_back_in_logical_order(tmp_path):
+    lines = [
+        TextLine((900, 300, 1600, 400), (TextWord("שלום", (1300, 300, 1600, 400)),
+                                         TextWord("עולם", (900, 300, 1250, 400)))),
+        TextLine((900, 500, 1600, 600), (TextWord("مَرْحَبًا", (1100, 500, 1600, 600)),
+                                         TextWord("يَا", (900, 500, 1050, 600)))),
+        TextLine((300, 700, 950, 800), (TextWord("see", (300, 700, 450, 800)),
+                                        TextWord("שלום", (500, 700, 700, 800)),
+                                        TextWord("here", (750, 700, 950, 800)))),
+    ]
+    path = write(tmp_path / "rtl.pdf", lines=lines)
+    with pyjpdfium.open_document(path) as document, document.page(0) as page:
+        assert squash(page.text()) == "שלום עולם مَرْحَبًا يَا see שלום here"
+
+
+def rotated(box, degrees, centre):
+    a = math.radians(degrees)
+    cx, cy = centre
+    x0, y0, x1, y1 = box
+    return tuple((cx + (x - cx) * math.cos(a) - (y - cy) * math.sin(a),
+                  cy + (x - cx) * math.sin(a) + (y - cy) * math.cos(a))
+                 for x, y in ((x0, y0), (x1, y0), (x1, y1), (x0, y1)))
+
+
+@pytest.mark.parametrize("degrees", [15, 90, -90])
+def test_rotated_quad_lines_read_back(tmp_path, degrees):
+    centre = (1200, 1050)
+    words = [("rotated", (1000, 1000, 1350, 1100)), ("text", (1400, 1000, 1600, 1100))]
+    line = TextLine((1000, 1000, 1600, 1100),
+                    tuple(TextWord(t, b, rotated(b, degrees, centre)) for t, b in words),
+                    rotated((1000, 1000, 1600, 1100), degrees, centre))
+    path = write(tmp_path / "rotated.pdf", lines=[line])
+    with pyjpdfium.open_document(path) as document, document.page(0) as page:
+        assert squash(page.text()) == "rotated text"
+        with page.render(dpi=100, pixel_format="gray") as bitmap:
+            assert min(bitmap.tobytes()) == 255
+
+
 def one_word(text, box=(0, 0, 100, 50)):
     return [TextLine(box, (TextWord(text, box),))]
+
+
+MIRRORED = ((0, 50), (100, 50), (100, 0), (0, 0))  # anticlockwise: a mirror image
 
 
 @pytest.mark.parametrize(
     ("lines", "error"),
     [
-        (one_word("שלום"), errors.UnsupportedError),  # right-to-left is not laid out yet
+        (one_word("a\u202eb"), errors.UnsupportedError),  # explicit overrides are refused
+        ([TextLine((0, 0, 100, 50), (TextWord("a", (0, 0, 100, 50)),), MIRRORED)],
+         errors.InvalidArgumentError),
         (one_word("a\tb"), errors.InvalidArgumentError),
         (one_word("a\x00b"), errors.InvalidArgumentError),
         (one_word("\ud800"), errors.InvalidArgumentError),

@@ -21,4 +21,7 @@ def test_text_lines_keep_each_line_whole():
     # Word geometry is absent: a line is one word over its box, never split evenly.
     assert [tl.words[0].text for tl in text_lines] == ["hello world", "next"]
     assert text_lines[0].words[0].box == text_lines[0].box == (10, 10, 200, 40)
+    # The polygon places the line, so rotated or skewed lines keep their slope.
+    quad = ((10, 10), (200, 10), (200, 40), (10, 40))
+    assert text_lines[0].quad == text_lines[0].words[0].quad == quad
     assert r.text == "hello world\n   \nnext"
