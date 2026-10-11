@@ -21,6 +21,8 @@ pyjpdfium              pure Python API: Document, Page, Bitmap, OcrEngine, runti
 pyjpdfium._loader      lazy load, core pinning, identity checks, runtime init
 pyjpdfium._native      nanobind module: one function per jpdf_* call, GIL released around it
 pyjpdfium._ocr_native  nanobind module over jpdfium_ocr.h, loaded on the first OcrEngine
+pyjpdfium.cli          the pyjpdfium command; pyjpdfium.profiles checks model profiles in Python
+pyjpdfium.ocrmypdf     OCRmyPDF plugin, imported only by ocrmypdf --plugin
 libjpdfium             the shared native core (never compiled into the extension)
 libjpdfium_ocr         the optional OCR module, linked to the core, with ONNX Runtime
 ```
@@ -29,7 +31,9 @@ libjpdfium_ocr         the optional OCR module, linked to the core, with ONNX Ru
 runs `_loader.native()`, which:
 
 1. Loads the core from `PYJPDFIUM_NATIVE_DIR` or the bundled `pyjpdfium/_libs`, by exact path, so
-   the extension binds to that copy.
+   the extension binds to that copy. It loads with `RTLD_LOCAL`, and refuses natives whose
+   `libpdfium.so` or `libonnxruntime.so.1` would collide with one already loaded (pypdfium2,
+   onnxruntime); `tools/stage_natives.py` renames ours.
 2. Checks the core's API version and struct layouts against the compiled header, and refuses to
    continue if more than one `libjpdfium` is mapped into the process.
 3. Calls `jpdf_runtime_init` (explicit lazy initialization).

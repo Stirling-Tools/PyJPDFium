@@ -15,6 +15,9 @@ from .models import Renderer
 
 NATIVE_DIR_ENV = "PYJPDFIUM_NATIVE_DIR"
 RENDERER_ENV = "PYJPDFIUM_RENDERER"
+# Sonames other wheels also ship (pypdfium2, onnxruntime); tools/stage_natives.py renames ours.
+SHARED_SONAMES = {"libpdfium.so": "libjpdfium_pdfium.so",
+                  "libonnxruntime.so.1": "libjpdfium_onnxruntime.so.1"}
 
 _lock = threading.Lock()
 _module: ModuleType | None = None
@@ -75,14 +78,44 @@ def _library_name(stem: str) -> str:
     return f"lib{stem}.so"
 
 
+def _mapped_libraries() -> list[str]:
+    maps = Path("/proc/self/maps")
+    if not maps.exists():
+        return []
+    paths = set()
+    for line in maps.read_text().splitlines():
+        parts = line.split(maxsplit=5)
+        if len(parts) == 6 and parts[5].startswith("/"):
+            paths.add(os.path.realpath(parts[5]))
+    return sorted(paths)
+
+
+def _check_soname_clash(directory: Path) -> None:
+    """Refuses unstaged natives when another package already loaded a same-named library."""
+    for soname in SHARED_SONAMES:
+        if not (directory / soname).exists():
+            continue  # staged, or not part of this build
+        ours = os.path.realpath(directory / soname)
+        mapped = [p for p in _mapped_libraries() if Path(p).name.startswith(soname)]
+        # Ours mapped means it loaded first, so later dependencies still resolve to it.
+        foreign = [p for p in mapped if p != ours]
+        if foreign and ours not in mapped:
+            raise NativeLoadError(
+                f"{foreign[0]} is already loaded and shares the soname {soname} with "
+                f"{directory}; stage the natives with tools/stage_natives.py"
+            )
+
+
 def _pin_library(path: Path, what: str) -> None:
     if not path.is_file():
         raise NativeLoadError(f"{what} not found at {path}; set {NATIVE_DIR_ENV} to staged natives")
     if sys.platform == "win32":
         _pins.append(os.add_dll_directory(str(path.parent)))
         return
-    # Loading this exact file first makes the extension bind to it rather than another copy.
-    _pins.append(ctypes.CDLL(str(path), mode=ctypes.RTLD_GLOBAL))
+    _check_soname_clash(path.parent)
+    # Loading this file first binds the extension to it. RTLD_LOCAL keeps our PDFium's symbols
+    # out of the global scope, where another PDFium in the process could resolve to them.
+    _pins.append(ctypes.CDLL(str(path), mode=ctypes.RTLD_LOCAL))
 
 
 def _pin_core(directory: Path) -> None:
@@ -90,15 +123,7 @@ def _pin_core(directory: Path) -> None:
 
 
 def _loaded_core_paths() -> set[str]:
-    maps = Path("/proc/self/maps")
-    if not maps.exists():
-        return set()
-    paths = set()
-    for line in maps.read_text().splitlines():
-        parts = line.split(maxsplit=5)
-        if len(parts) == 6 and Path(parts[5]).name.startswith("libjpdfium.so"):
-            paths.add(os.path.realpath(parts[5]))
-    return paths
+    return {p for p in _mapped_libraries() if Path(p).name.startswith("libjpdfium.so")}
 
 
 def _check_identity(module: ModuleType) -> None:

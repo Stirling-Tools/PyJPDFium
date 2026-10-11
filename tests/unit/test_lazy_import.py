@@ -5,7 +5,7 @@ PROBE = """
 import sys
 import pyjpdfium
 import pyjpdfium.errors, pyjpdfium.models, pyjpdfium.pdf, pyjpdfium.runtime
-import pyjpdfium.ocr, pyjpdfium.raster, pyjpdfium.textlayer
+import pyjpdfium.ocr, pyjpdfium.raster, pyjpdfium.textlayer, pyjpdfium.cli, pyjpdfium.profiles
 assert pyjpdfium.PixelFormat.RGB == 2
 loaded = [m for m in sys.modules if m.startswith(("pyjpdfium._native", "pyjpdfium._ocr_native"))]
 assert not loaded, loaded

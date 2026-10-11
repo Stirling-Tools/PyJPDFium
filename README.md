@@ -9,7 +9,8 @@ lifetimes and handle validation, so the same rules hold for the Java and Python 
 
 Status: early development. Covered so far: documents, pages, rendering, page text, transactional
 PNG output, OCRmyPDF-compatible page rasterization, perspective rectification, invisible text
-layers in any script and direction, and OCR with PP-OCR models.
+layers in any script and direction, OCR with PP-OCR models, a command line, and an OCRmyPDF
+plugin that needs neither Tesseract nor Ghostscript.
 
 ```python
 import pyjpdfium
@@ -37,6 +38,21 @@ with pyjpdfium.OcrEngine("pp-ocrv6-small/") as engine:
     pyjpdfium.write_text_layer("text.pdf", result.text_lines(), image_size=result.image_size,
                                dpi=300)
 ```
+
+## Command line and OCRmyPDF
+
+```bash
+pyjpdfium info [input.pdf]                 # runtime identity and capabilities, or a PDF's pages
+pyjpdfium render input.pdf page.png --page 1 --dpi 300
+pyjpdfium ocr input.pdf --profile pp-ocrv6-small/ --layer text.pdf
+pyjpdfium fonts                            # text layer fonts
+pyjpdfium models pp-ocrv6-small/           # check a profile against its pinned digests
+pyjpdfium doctor                           # check the installation; recognizes nothing
+
+ocrmypdf --plugin pyjpdfium.ocrmypdf --output-type pdf input.pdf output.pdf
+```
+
+The plugin, what it refuses and why are in [docs/OCRMYPDF.md](docs/OCRMYPDF.md).
 
 ## Behaviour
 
@@ -72,6 +88,8 @@ Parity with OCRmyPDF's own rasterizer and sandwich graft is opt-in: install
 `tests/parity/requirements.txt` (hash-pinned), set `PYJPDFIUM_PARITY_SRC` to the output of
 `tests/parity/fetch_reference.py`, and run `pytest tests/parity`. OCR tests need
 `PYJPDFIUM_OCR_PROFILE`; OCR parity also needs `PYJPDFIUM_OCR_REFERENCE`, a Python with
-`tests/parity/ocr-requirements.txt` installed.
+`tests/parity/ocr-requirements.txt` installed. The OCRmyPDF tests need
+`PYJPDFIUM_OCRMYPDF_PYTHON`, a Python with `tests/ocrmypdf/requirements.txt` and pyjpdfium
+installed, and natives staged by `tools/stage_natives.py`.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design.

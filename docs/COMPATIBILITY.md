@@ -71,9 +71,13 @@ the same text, and confidences within 1.2e-7 (JPDFium's `docs/design/OCR.md`).
   configuration.
 - The OCR extension is built only when the staged natives include `libjpdfium_ocr`.
 
+## OCRmyPDF
+
+`pyjpdfium.ocrmypdf` supports OCRmyPDF 17.13.x on Linux with staged natives, `--output-type pdf`
+and English. [OCRMYPDF.md](OCRMYPDF.md) lists every refused option.
+
 ## Not in this release
 
-- The OCRmyPDF plugin.
 - PDF/A output: rejected by design.
 - Opening from bytes or file-like objects, saving or editing documents.
 - Free-threaded CPython builds are untested.

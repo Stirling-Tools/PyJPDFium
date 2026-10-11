@@ -97,7 +97,8 @@ jobs:
           JPDFIUM_INCLUDE_DIR: ${{ github.workspace }}/jpdfium/native/bridge/include
         run: |
           python -m pip install "scikit-build-core>=0.11" "nanobind>=2.9" "pytest>=8"
-          python -m pip install --no-build-isolation .
+          python -m pip wheel --no-build-isolation --no-deps . -w "$RUNNER_TEMP/wheel"
+          python -m pip install --no-deps "$RUNNER_TEMP"/wheel/pyjpdfium-*.whl
 
       - name: Python tests (unit + native)
         env:
@@ -126,3 +127,17 @@ jobs:
           "$RUNNER_TEMP/ocr-reference/bin/pip" install --require-hashes --only-binary=:all: \
             -r tests/parity/ocr-requirements.txt
           python -m pytest tests/parity/test_ocr_parity.py -q -rs
+
+      - name: OCRmyPDF end to end with the pyjpdfium plugin
+        env:
+          PYJPDFIUM_OCR_PROFILE: ${{ runner.temp }}/ocr-profile
+          PYJPDFIUM_OCRMYPDF_PYTHON: ${{ runner.temp }}/ocrmypdf/bin/python
+        run: |
+          # OCRmyPDF imports pypdfium2, so our natives need their own sonames in that process.
+          python tools/stage_natives.py jpdfium/native/dist/linux-x64 "$RUNNER_TEMP/natives"
+          export PYJPDFIUM_NATIVE_DIR="$RUNNER_TEMP/natives"
+          python -m venv "$RUNNER_TEMP/ocrmypdf"
+          "$RUNNER_TEMP/ocrmypdf/bin/pip" install --require-hashes --only-binary=:all: \
+            -r tests/ocrmypdf/requirements.txt
+          "$RUNNER_TEMP/ocrmypdf/bin/pip" install --no-deps "$RUNNER_TEMP"/wheel/pyjpdfium-*.whl
+          python -m pytest tests/ocrmypdf tests/native/test_cli.py -q -rs

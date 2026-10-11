@@ -20,6 +20,10 @@ dependencies = []
 
 [project.optional-dependencies]
 test = ["pytest>=8"]
+ocrmypdf = ["ocrmypdf>=17.13,<17.14"]
+
+[project.scripts]
+pyjpdfium = "pyjpdfium.cli:main"
 
 [project.urls]
 Source = "https://github.com/Stirling-Tools/PyJPDFium"
