@@ -1,0 +1,55 @@
+"""Runs the official PaddleOCR 3.7 pipeline (ONNX Runtime engine) on images, offline.
+
+Usage: REFERENCE_PYTHON -I ocr_reference_runner.py PROFILE_DIR IMAGE [IMAGE ...]
+Prints one JSON object per image. The models come from the profile directory, never from a hub.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+import tempfile
+from pathlib import Path
+
+
+def model_dir(profile: Path, work: Path, role: str, stem: str) -> Path:
+    # PaddleOCR expects inference.onnx and inference.yml; link the pinned files under those names.
+    target = work / role
+    target.mkdir()
+    (target / "inference.onnx").symlink_to(profile / f"{stem}.onnx")
+    (target / "inference.yml").symlink_to(profile / f"{stem}.yml")
+    return target
+
+
+def main() -> None:
+    profile, images = Path(sys.argv[1]), sys.argv[2:]
+    os.environ["PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK"] = "True"
+    os.environ["HF_HUB_OFFLINE"] = "1"
+    from paddleocr import PaddleOCR
+
+    with tempfile.TemporaryDirectory() as tmp:
+        work = Path(tmp)
+        ocr = PaddleOCR(
+            text_detection_model_name="PP-OCRv6_small_det",
+            text_detection_model_dir=str(model_dir(profile, work, "det", "det")),
+            text_recognition_model_name="PP-OCRv6_small_rec",
+            text_recognition_model_dir=str(model_dir(profile, work, "rec", "rec")),
+            engine="onnxruntime",
+            use_doc_orientation_classify=False,
+            use_doc_unwarping=False,
+            use_textline_orientation=False,
+        )
+        for image in images:
+            for res in ocr.predict(image):
+                r = res.json["res"]
+                print(json.dumps({
+                    "image": image,
+                    "polys": [[[int(v) for v in p] for p in poly] for poly in r["rec_polys"]],
+                    "texts": r["rec_texts"],
+                    "scores": [float(s) for s in r["rec_scores"]],
+                }))
+
+
+if __name__ == "__main__":
+    main()

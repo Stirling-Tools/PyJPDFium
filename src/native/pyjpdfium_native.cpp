@@ -92,6 +92,7 @@ bool struct_sizes_match() {
         {JPDF_STRUCT_TEXT_WORD, sizeof(jpdf_text_word)},
         {JPDF_STRUCT_TEXT_LINE, sizeof(jpdf_text_line)},
         {JPDF_STRUCT_TEXT_LAYER_OPTIONS, sizeof(jpdf_text_layer_options)},
+        {JPDF_STRUCT_IMAGE_LOAD_OPTIONS, sizeof(jpdf_image_load_options)},
     };
     for (const auto& pair : expected) {
         if (jpdf_abi_struct_size(static_cast<int32_t>(pair[0])) != pair[1]) return false;
@@ -316,6 +317,15 @@ NB_MODULE(_native, m) {
               jpdf_write_options w = write_options(durable, png_compression, max_bytes);
               run([&] { return jpdf_page_render_to_file(page, &o, path.c_str(), &w); });
           });
+
+    m.def("image_load", [](const std::string& path, uint64_t max_pixels) {
+        jpdf_image_load_options o{};
+        o.struct_size = sizeof(o);
+        o.max_pixels = max_pixels;
+        jpdf_handle bitmap = 0;
+        run([&] { return jpdf_image_load_file(path.c_str(), &o, &bitmap); });
+        return bitmap;
+    });
 
     m.def("bitmap_info", [](jpdf_handle bitmap) {
         jpdf_bitmap_info info{};

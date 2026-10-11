@@ -47,6 +47,30 @@ endif()
 
 install(TARGETS _native LIBRARY DESTINATION pyjpdfium)
 
+# Optional OCR extension: built when the staged natives include libjpdfium_ocr.
+set(JPDFIUM_OCR_INCLUDE_DIR "${JPDFIUM_INCLUDE_DIR}/../../ocr/include" CACHE PATH
+    "Directory containing jpdfium_ocr.h")
+find_library(JPDFIUM_OCR_LIBRARY NAMES jpdfium_ocr PATHS "${JPDFIUM_NATIVE_DIR}" NO_DEFAULT_PATH)
+if(JPDFIUM_OCR_LIBRARY AND EXISTS "${JPDFIUM_OCR_INCLUDE_DIR}/jpdfium_ocr.h")
+    message(STATUS "JPDFium OCR module: ${JPDFIUM_OCR_LIBRARY}")
+    nanobind_add_module(_ocr_native NB_STATIC src/native/pyjpdfium_ocr_native.cpp)
+    target_include_directories(_ocr_native PRIVATE "${JPDFIUM_INCLUDE_DIR}" "${JPDFIUM_OCR_INCLUDE_DIR}")
+    target_link_libraries(_ocr_native PRIVATE "${JPDFIUM_OCR_LIBRARY}" "${JPDFIUM_LIBRARY}")
+    if(MSVC)
+        target_compile_options(_ocr_native PRIVATE /W4 /WX)
+    else()
+        target_compile_options(_ocr_native PRIVATE -Wall -Wextra -Werror)
+    endif()
+    if(APPLE)
+        set_target_properties(_ocr_native PROPERTIES INSTALL_RPATH "@loader_path/_libs")
+    elseif(UNIX)
+        set_target_properties(_ocr_native PROPERTIES INSTALL_RPATH "$ORIGIN/_libs")
+    endif()
+    install(TARGETS _ocr_native LIBRARY DESTINATION pyjpdfium)
+else()
+    message(STATUS "JPDFium OCR module not staged; pyjpdfium.ocr will be unavailable")
+endif()
+
 if(PYJPDFIUM_BUNDLE_NATIVES)
     install(DIRECTORY "${JPDFIUM_NATIVE_DIR}/" DESTINATION pyjpdfium/_libs
         FILES_MATCHING PATTERN "*.so*" PATTERN "*.dylib" PATTERN "*.dll"

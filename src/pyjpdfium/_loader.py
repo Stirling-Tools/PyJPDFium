@@ -18,6 +18,7 @@ RENDERER_ENV = "PYJPDFIUM_RENDERER"
 
 _lock = threading.Lock()
 _module: ModuleType | None = None
+_ocr_module: ModuleType | None = None
 # Keeps Windows DLL directory registrations and preloaded cores alive for the process.
 _pins: list[object] = []
 
@@ -34,6 +35,30 @@ def native() -> ModuleType:
         return _module
 
 
+def ocr_native() -> ModuleType:
+    """Returns the OCR extension, loading the core first and then the OCR module beside it."""
+    global _ocr_module
+    native()  # the OCR module links the core, so the core loads and starts first
+    if _ocr_module is not None:
+        return _ocr_module
+    with _lock:
+        if _ocr_module is None:
+            directory = native_dir()
+            if directory is not None:
+                _pin_library(directory / _library_name("jpdfium_ocr"), "the JPDFium OCR module")
+            try:
+                module = importlib.import_module("pyjpdfium._ocr_native")
+            except ImportError as exc:
+                raise NativeLoadError(f"the JPDFium OCR module is not available: {exc}") from exc
+            library, compiled = module.api_version(), module.COMPILED_API_VERSION
+            if library >> 16 != compiled >> 16 or (library & 0xFFFF) < (compiled & 0xFFFF):
+                raise NativeLoadError("JPDFium OCR module API is incompatible with this build")
+            if not module.struct_sizes_match():
+                raise NativeLoadError("JPDFium OCR struct layouts differ from the compiled header")
+            _ocr_module = module
+        return _ocr_module
+
+
 def native_dir() -> Path | None:
     configured = os.environ.get(NATIVE_DIR_ENV)
     if configured:
@@ -42,23 +67,26 @@ def native_dir() -> Path | None:
     return bundled if bundled.is_dir() else None
 
 
-def _core_name() -> str:
+def _library_name(stem: str) -> str:
     if sys.platform == "win32":
-        return "jpdfium.dll"
+        return f"{stem}.dll"
     if sys.platform == "darwin":
-        return "libjpdfium.dylib"
-    return "libjpdfium.so"
+        return f"lib{stem}.dylib"
+    return f"lib{stem}.so"
+
+
+def _pin_library(path: Path, what: str) -> None:
+    if not path.is_file():
+        raise NativeLoadError(f"{what} not found at {path}; set {NATIVE_DIR_ENV} to staged natives")
+    if sys.platform == "win32":
+        _pins.append(os.add_dll_directory(str(path.parent)))
+        return
+    # Loading this exact file first makes the extension bind to it rather than another copy.
+    _pins.append(ctypes.CDLL(str(path), mode=ctypes.RTLD_GLOBAL))
 
 
 def _pin_core(directory: Path) -> None:
-    core = directory / _core_name()
-    if not core.is_file():
-        raise NativeLoadError(f"{core} not found; set {NATIVE_DIR_ENV} to staged JPDFium natives")
-    if sys.platform == "win32":
-        _pins.append(os.add_dll_directory(str(directory)))
-        return
-    # Loading this exact file first makes the extension bind to it rather than another copy.
-    _pins.append(ctypes.CDLL(str(core), mode=ctypes.RTLD_GLOBAL))
+    _pin_library(directory / _library_name("jpdfium"), "the JPDFium core")
 
 
 def _loaded_core_paths() -> set[str]:

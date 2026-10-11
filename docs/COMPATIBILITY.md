@@ -23,9 +23,23 @@ OCRmyPDF 17.13's renderer lays out invisible text. OCRmyPDF's own sandwich graft
 pypdfium2, qpdf and fontTools read it back (JPDFium's `docs/design/TEXT_LAYER.md`). Right-to-left
 scripts raise `UnsupportedError` until the multilingual writer lands.
 
+## OCR
+
+`OcrEngine` runs JPDFium's optional OCR module: PP-OCRv6 small on ONNX Runtime 1.30.0, with the
+models of a profile directory fetched by JPDFium's `native/ocr/tools/fetch_profile.py`. On the
+parity fixtures it reproduces the official `paddleocr` 3.7.0 pipeline exactly: the same polygons,
+the same text, and confidences within 1.2e-7 (JPDFium's `docs/design/OCR.md`).
+
+- PNG input is read as OpenCV's `imread(IMREAD_COLOR)` reads it: alpha dropped, 16-bit samples
+  cut to their high byte.
+- Lines only: `OcrResult.word_geometry` is `"absent"`, and `text_lines()` keeps each line whole.
+- No text-line orientation model, so vertical text is not read correctly, as in the reference
+  configuration.
+- The OCR extension is built only when the staged natives include `libjpdfium_ocr`.
+
 ## Not in this release
 
-- OCR and the OCRmyPDF plugin.
+- The OCRmyPDF plugin.
 - PDF/A output: rejected by design.
 - Opening from bytes or file-like objects, saving or editing documents.
 - Free-threaded CPython builds are untested.

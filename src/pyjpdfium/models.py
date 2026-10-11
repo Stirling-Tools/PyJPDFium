@@ -132,6 +132,45 @@ class TextLine:
 
 
 @dataclass(frozen=True)
+class OcrLine:
+    """One recognized line. Its polygon runs clockwise from the top-left, in image pixels."""
+
+    text: str
+    polygon: tuple[tuple[float, float], ...]
+    confidence: float
+    detection_score: float
+
+    @property
+    def box(self) -> Box:
+        xs = [x for x, _ in self.polygon]
+        ys = [y for _, y in self.polygon]
+        return min(xs), min(ys), max(xs), max(ys)
+
+
+@dataclass(frozen=True)
+class OcrResult:
+    """Lines in reading order. The models report lines only, so word geometry is absent."""
+
+    image_size: tuple[int, int]
+    dpi: tuple[float, float]
+    profile: str
+    lines: tuple[OcrLine, ...]
+    word_geometry: str = "absent"
+
+    @property
+    def text(self) -> str:
+        return "\n".join(line.text for line in self.lines)
+
+    def text_lines(self) -> tuple[TextLine, ...]:
+        """For write_text_layer: each line becomes one word spanning its box, never split."""
+        return tuple(
+            TextLine(line.box, (TextWord(line.text, line.box),))
+            for line in self.lines
+            if line.text.strip()
+        )
+
+
+@dataclass(frozen=True)
 class RectifyResult:
     """Corners as used (top-left, top-right, bottom-right, bottom-left) and the inverse map."""
 

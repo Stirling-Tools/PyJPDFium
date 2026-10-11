@@ -8,8 +8,8 @@ PyJPDFium is a thin [nanobind](https://github.com/wjakob/nanobind) binding over 
 lifetimes and handle validation, so the same rules hold for the Java and Python bindings.
 
 Status: early development. Covered so far: documents, pages, rendering, page text, transactional
-PNG output, OCRmyPDF-compatible page rasterization, perspective rectification and invisible text
-layers.
+PNG output, OCRmyPDF-compatible page rasterization, perspective rectification, invisible text
+layers and OCR with PP-OCR models.
 
 ```python
 import pyjpdfium
@@ -30,6 +30,12 @@ from pyjpdfium import TextLine, TextWord
 line = TextLine((300, 300, 1500, 400), (TextWord("Hello", (300, 300, 800, 400)),
                                         TextWord("world", (900, 300, 1500, 400))))
 pyjpdfium.write_text_layer("text.pdf", [line], image_size=(2550, 3300), dpi=300)
+
+# OCR, when the natives include the OCR module (see JPDFium docs/design/OCR.md).
+with pyjpdfium.OcrEngine("pp-ocrv6-small/") as engine:
+    result = engine.recognize("page.png")
+    pyjpdfium.write_text_layer("text.pdf", result.text_lines(), image_size=result.image_size,
+                               dpi=300)
 ```
 
 ## Behaviour
@@ -64,6 +70,8 @@ PYJPDFIUM_NATIVE_DIR=$JPDFIUM_NATIVE_DIR pytest
 Native tests (`-m native`) need the real core and are skipped when the extension is not built.
 Parity with OCRmyPDF's own rasterizer and sandwich graft is opt-in: install
 `tests/parity/requirements.txt` (hash-pinned), set `PYJPDFIUM_PARITY_SRC` to the output of
-`tests/parity/fetch_reference.py`, and run `pytest tests/parity`.
+`tests/parity/fetch_reference.py`, and run `pytest tests/parity`. OCR tests need
+`PYJPDFIUM_OCR_PROFILE`; OCR parity also needs `PYJPDFIUM_OCR_REFERENCE`, a Python with
+`tests/parity/ocr-requirements.txt` installed.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design.

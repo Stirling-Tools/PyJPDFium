@@ -78,6 +78,11 @@ def open_document(path: StrPath, *, password: str | None = None) -> Document:
     return Document(lib.doc_open(_fspath(path), password), _fspath(path))
 
 
+def load_image(path: StrPath, *, max_pixels: int | None = None) -> Bitmap:
+    """Decodes a PNG into a Bitmap: gray stays gray, colour becomes RGB, alpha is dropped."""
+    return Bitmap(native().image_load(_fspath(path), max_pixels or 0))
+
+
 class Document(_Handle):
     def __init__(self, token: int, path: str) -> None:
         super().__init__(token, native().doc_close)

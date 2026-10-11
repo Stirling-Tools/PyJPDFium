@@ -13,6 +13,9 @@ __version__ = "0.1.0.dev0"
 
 _EXPORTS = {
     "open_document": "pyjpdfium.pdf",
+    "load_image": "pyjpdfium.pdf",
+    "OcrEngine": "pyjpdfium.ocr",
+    "recognize_image": "pyjpdfium.ocr",
     "Document": "pyjpdfium.pdf",
     "Page": "pyjpdfium.pdf",
     "Bitmap": "pyjpdfium.pdf",
@@ -37,6 +40,8 @@ _EXPORTS = {
     "RectifyResult": "pyjpdfium.models",
     "TextWord": "pyjpdfium.models",
     "TextLine": "pyjpdfium.models",
+    "OcrLine": "pyjpdfium.models",
+    "OcrResult": "pyjpdfium.models",
     "PyJPDFiumError": "pyjpdfium.errors",
     "NativeLoadError": "pyjpdfium.errors",
     "InvalidArgumentError": "pyjpdfium.errors",

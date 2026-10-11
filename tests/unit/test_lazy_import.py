@@ -5,15 +5,15 @@ PROBE = """
 import sys
 import pyjpdfium
 import pyjpdfium.errors, pyjpdfium.models, pyjpdfium.pdf, pyjpdfium.runtime
-import pyjpdfium.raster, pyjpdfium.textlayer
+import pyjpdfium.ocr, pyjpdfium.raster, pyjpdfium.textlayer
 assert pyjpdfium.PixelFormat.RGB == 2
-loaded = [m for m in sys.modules if m.startswith("pyjpdfium._native")]
+loaded = [m for m in sys.modules if m.startswith(("pyjpdfium._native", "pyjpdfium._ocr_native"))]
 assert not loaded, loaded
 try:
     maps = open("/proc/self/maps").read()
 except OSError:
     maps = ""
-assert "libjpdfium" not in maps and "libpdfium" not in maps
+assert "libjpdfium" not in maps and "libpdfium" not in maps and "onnxruntime" not in maps
 print("lazy-ok")
 """
 

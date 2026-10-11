@@ -17,10 +17,12 @@ The full contracts live in JPDFium's `docs/design/` (`ARCHITECTURE.md`, `NATIVE_
 ## Layers
 
 ```text
-pyjpdfium            pure Python API: Document, Page, Bitmap, write_text_layer, runtime_*
-pyjpdfium._loader    lazy load, core pinning, identity checks, runtime init
-pyjpdfium._native    nanobind module: one function per jpdf_* call, GIL released around it
-libjpdfium           the shared native core (never compiled into the extension)
+pyjpdfium              pure Python API: Document, Page, Bitmap, OcrEngine, runtime_* ...
+pyjpdfium._loader      lazy load, core pinning, identity checks, runtime init
+pyjpdfium._native      nanobind module: one function per jpdf_* call, GIL released around it
+pyjpdfium._ocr_native  nanobind module over jpdfium_ocr.h, loaded on the first OcrEngine
+libjpdfium             the shared native core (never compiled into the extension)
+libjpdfium_ocr         the optional OCR module, linked to the core, with ONNX Runtime
 ```
 
 `import pyjpdfium` and its pure modules load nothing native. The first call that needs the core
