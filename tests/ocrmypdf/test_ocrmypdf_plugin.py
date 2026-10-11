@@ -200,6 +200,16 @@ def test_pages_in_parallel_workers(tmp_path, workers):
     assert page_texts(out) == [EXPECTED] * 3
 
 
+def test_one_page_at_a_time_bounds_memory_and_reads_the_same(tmp_path):
+    source = tmp_path / "in.pdf"
+    page = scanned_page(tmp_path)
+    source.write_bytes(pdf_bytes([page, page]))
+    out = tmp_path / "out.pdf"
+    ok(ocrmypdf("--output-type", "pdf", "--jobs", "2", "--pyjpdfium-max-concurrent", "1",
+                str(source), str(out)))
+    assert page_texts(out) == [EXPECTED] * 2
+
+
 def test_fpdf2_reference_renderer_reads_the_same_words(tmp_path):
     source = tmp_path / "in.pdf"
     source.write_bytes(pdf_bytes([scanned_page(tmp_path)]))
@@ -221,6 +231,7 @@ def test_fpdf2_reference_renderer_reads_the_same_words(tmp_path):
         (("--output-type", "pdf", "-l", "deu"), 3, "deu"),
         (("--output-type", "pdf", "--tesseract-timeout", "5"), 2, "--tesseract-timeout"),
         (("--output-type", "pdf", "--pyjpdfium-threads", "-1"), 1, "threads"),
+        (("--output-type", "pdf", "--pyjpdfium-max-concurrent", "0"), 1, "max-concurrent"),
     ],
 )
 def test_unsupported_modes_are_refused(tmp_path, args, code, message):

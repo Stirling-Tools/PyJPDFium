@@ -22,6 +22,22 @@ def model_dir(profile: Path, work: Path, role: str, stem: str) -> Path:
     return target
 
 
+def pipeline_args(profile: Path) -> dict:
+    """The profile's parameters as PaddleOCR arguments; one PaddleOCR cannot take is refused."""
+    params = dict(line.split()[1:3] for line in (profile / "profile.txt").read_text().splitlines()
+                  if line.startswith("param "))
+    if params.get("det_max_side_limit", "4000") != "4000":
+        raise SystemExit("PaddleOCR fixes det_max_side_limit at 4000")
+    return {
+        "text_det_limit_side_len": int(params["det_limit_side_len"]),
+        "text_det_limit_type": params["det_limit_type"],
+        "text_det_thresh": float(params["det_thresh"]),
+        "text_det_box_thresh": float(params["det_box_thresh"]),
+        "text_det_unclip_ratio": float(params["det_unclip_ratio"]),
+        "text_recognition_batch_size": int(params["rec_batch_size"]),
+    }
+
+
 def main() -> None:
     profile, images = Path(sys.argv[1]), sys.argv[2:]
     os.environ["PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK"] = "True"
@@ -39,6 +55,7 @@ def main() -> None:
             use_doc_orientation_classify=False,
             use_doc_unwarping=False,
             use_textline_orientation=False,
+            **pipeline_args(profile),
         )
         for image in images:
             for res in ocr.predict(image):

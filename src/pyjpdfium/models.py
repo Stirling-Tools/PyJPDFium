@@ -190,6 +190,14 @@ class OcrResult:
             out.append(TextLine(line.box, (TextWord(line.text, line.box, quad),), quad))
         return tuple(out)
 
+    def write_text_layer(self, output, *, durable: bool = False,
+                         max_bytes: int | None = None) -> None:
+        """The invisible text layer for this image: write_text_layer with its size and DPI."""
+        from .textlayer import write_text_layer
+
+        write_text_layer(output, self.text_lines(), image_size=self.image_size, dpi=self.dpi,
+                         durable=durable, max_bytes=max_bytes)
+
 
 @dataclass(frozen=True)
 class RectifyResult:

@@ -64,6 +64,8 @@ models of a profile directory fetched by JPDFium's `native/ocr/tools/fetch_profi
 parity fixtures it reproduces the official `paddleocr` 3.7.0 pipeline exactly: the same polygons,
 the same text, and confidences within 1.2e-7 (JPDFium's `docs/design/OCR.md`).
 
+- Two profiles: `pp-ocrv6-small` and `pp-ocrv6-small-balanced`, each matching the reference
+  pipeline at its own detection size ([PERFORMANCE.md](PERFORMANCE.md)).
 - PNG input is read as OpenCV's `imread(IMREAD_COLOR)` reads it: alpha dropped, 16-bit samples
   cut to their high byte.
 - Lines only: `OcrResult.word_geometry` is `"absent"`, and `text_lines()` keeps each line whole.

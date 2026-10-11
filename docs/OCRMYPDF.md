@@ -5,7 +5,7 @@ and its invisible text layer writer. Tesseract and Ghostscript are not needed.
 
 ```bash
 pip install "pyjpdfium[ocrmypdf]"
-export PYJPDFIUM_OCR_PROFILE=/path/to/pp-ocrv6-small   # fetched with fetch_profile.py
+export PYJPDFIUM_OCR_PROFILE=/path/to/pp-ocrv6-small-balanced   # see fetch_profile.py
 ocrmypdf --plugin pyjpdfium.ocrmypdf --output-type pdf input.pdf output.pdf
 ```
 
@@ -27,7 +27,12 @@ without it.
   found while the visible page keeps it.
 - Engines load once per worker process and are shared by its threads. ONNX Runtime uses one
   thread per page by default (`--pyjpdfium-threads`), since OCRmyPDF already runs pages in
-  parallel.
+  parallel. `--pyjpdfium-max-concurrent N` caps the pages recognized at once in a process, to
+  bound memory.
+
+Speed, memory and accuracy against Tesseract, per profile, are in
+[PERFORMANCE.md](PERFORMANCE.md). The balanced profile is the one to use for ordinary
+documents.
 
 The plugin blocks OCRmyPDF's built-in Tesseract plugin, so Tesseract's checks and options do not
 apply. OCRmyPDF's own validation still reads `options.tesseract`, so the plugin registers that

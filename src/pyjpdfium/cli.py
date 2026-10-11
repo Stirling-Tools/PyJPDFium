@@ -75,7 +75,7 @@ def _profile(args: argparse.Namespace) -> Path:
 
 
 def cmd_ocr(args: argparse.Namespace) -> int:
-    from . import OcrEngine, rasterize_page, write_text_layer
+    from . import OcrEngine, rasterize_page
 
     source = Path(args.input)
     with tempfile.TemporaryDirectory(prefix="pyjpdfium-ocr-") as work:
@@ -86,8 +86,7 @@ def cmd_ocr(args: argparse.Namespace) -> int:
         with OcrEngine(_profile(args), threads=args.threads) as engine:
             result = engine.recognize(image)
     if args.layer:
-        write_text_layer(args.layer, result.text_lines(), image_size=result.image_size,
-                         dpi=result.dpi)
+        result.write_text_layer(args.layer)
     if args.json:
         lines = [{"text": line.text, "polygon": line.polygon, "confidence": line.confidence}
                  for line in result.lines]

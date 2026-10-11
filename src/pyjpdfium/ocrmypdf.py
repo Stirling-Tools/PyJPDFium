@@ -59,6 +59,7 @@ class PyjpdfiumOptions(BaseModel):
 
     profile: str | None = None
     threads: int = 1  # ONNX Runtime threads per page; OCRmyPDF already runs pages in parallel
+    max_concurrent: int | None = None  # pages recognized at once per process; bounds memory
 
 
 def ocrmypdf_version() -> tuple[int, ...]:
@@ -108,6 +109,10 @@ def add_options(parser):
         "--pyjpdfium-threads", dest="pyjpdfium_threads", type=int, default=1, metavar="N",
         help="ONNX Runtime threads per page (default 1; 0 lets ONNX Runtime choose)",
     )
+    group.add_argument(
+        "--pyjpdfium-max-concurrent", dest="pyjpdfium_max_concurrent", type=int, metavar="N",
+        help="Most pages recognized at once in one process, to bound memory (default: --jobs)",
+    )
     for action in parser._actions:  # noqa: SLF001 - argparse exposes no public lookup
         if "--ocr-engine" in action.option_strings and ENGINE_NAME not in action.choices:
             action.choices = [*action.choices, ENGINE_NAME]
@@ -133,6 +138,8 @@ def check_options(options):
         raise BadArgsError(f"Tesseract options do not apply to this engine: {', '.join(changed)}")
     if options.pyjpdfium.threads < 0:
         raise BadArgsError("--pyjpdfium-threads must not be negative")
+    if options.pyjpdfium.max_concurrent is not None and options.pyjpdfium.max_concurrent < 1:
+        raise BadArgsError("--pyjpdfium-max-concurrent must be at least 1")
     if options.ocr_engine == "none":
         return  # OCRmyPDF's null engine; only this plugin's rasterizer is used
     if options.pdf_renderer == "auto":
@@ -179,7 +186,7 @@ def filter_ocr_image(page, image):
 
 
 _engine_lock = threading.Lock()
-_engine: tuple[int, tuple[str, int], pyjpdfium.OcrEngine] | None = None
+_engine: tuple[int, tuple[str, int, int | None], pyjpdfium.OcrEngine] | None = None
 
 
 def _get_engine(options: OcrOptions) -> pyjpdfium.OcrEngine:
@@ -188,10 +195,11 @@ def _get_engine(options: OcrOptions) -> pyjpdfium.OcrEngine:
     directory = profile_dir(options)
     if directory is None:
         raise BadArgsError(f"pass --pyjpdfium-profile DIR or set {PROFILE_ENV}")
-    key = (os.fspath(directory), options.pyjpdfium.threads)
+    key = (os.fspath(directory), options.pyjpdfium.threads, options.pyjpdfium.max_concurrent)
     with _engine_lock:
         if _engine is None or _engine[0] != os.getpid() or _engine[1] != key:
-            _engine = (os.getpid(), key, pyjpdfium.OcrEngine(key[0], threads=key[1]))
+            engine = pyjpdfium.OcrEngine(key[0], threads=key[1], max_concurrent=key[2])
+            _engine = (os.getpid(), key, engine)
         return _engine[2]
 
 
@@ -239,9 +247,7 @@ class PyjpdfiumOcrEngine(OcrEngine):
     @staticmethod
     def generate_pdf(input_file, output_pdf, output_text, options) -> None:
         result = _recognize(Path(input_file), options)
-        pyjpdfium.write_text_layer(
-            output_pdf, result.text_lines(), image_size=result.image_size, dpi=result.dpi
-        )
+        result.write_text_layer(output_pdf)
         Path(output_text).write_text(_sidecar(result), encoding="utf-8")
 
     @staticmethod

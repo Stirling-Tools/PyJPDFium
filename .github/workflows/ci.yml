@@ -82,6 +82,11 @@ jobs:
           bash jpdfium/native/ocr/fetch-onnxruntime.sh linux-x64
           python jpdfium/native/ocr/tools/fetch_profile.py \
             jpdfium/native/ocr/profiles/pp-ocrv6-small.profile "$RUNNER_TEMP/ocr-profile"
+          # The balanced profile pins the same files; the fetcher reuses them after its digest check.
+          cp -r "$RUNNER_TEMP/ocr-profile" "$RUNNER_TEMP/ocr-profile-balanced"
+          python jpdfium/native/ocr/tools/fetch_profile.py \
+            jpdfium/native/ocr/profiles/pp-ocrv6-small-balanced.profile \
+            "$RUNNER_TEMP/ocr-profile-balanced"
 
       - name: Build the JPDFium core
         run: bash jpdfium/native/build-real.sh
@@ -131,6 +136,8 @@ jobs:
           "$RUNNER_TEMP/ocr-reference/bin/pip" install --require-hashes --only-binary=:all: \
             -r tests/parity/ocr-requirements.txt
           python -m pytest tests/parity/test_ocr_parity.py -q -rs
+          PYJPDFIUM_OCR_PROFILE="$RUNNER_TEMP/ocr-profile-balanced" \
+            python -m pytest tests/parity/test_ocr_parity.py -q -rs
 
       - name: OCRmyPDF end to end with the pyjpdfium plugin
         env:

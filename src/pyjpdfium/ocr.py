@@ -7,7 +7,9 @@ digest when an engine opens.
 
 from __future__ import annotations
 
+import contextlib
 import os
+import threading
 from typing import Union
 
 from ._loader import ocr_native
@@ -21,9 +23,15 @@ StrPath = Union[str, "os.PathLike[str]"]
 class OcrEngine(_Handle):
     """A verified profile with its two models loaded. Safe to share across threads."""
 
-    def __init__(self, profile: StrPath, *, threads: int = 0) -> None:
+    def __init__(
+        self, profile: StrPath, *, threads: int = 0, max_concurrent: int | None = None
+    ) -> None:
         if threads < 0:
             raise InvalidArgumentError("threads must not be negative")
+        if max_concurrent is not None and max_concurrent < 1:
+            raise InvalidArgumentError("max_concurrent must be at least 1")
+        # Each recognition holds its own model activations, so this bounds peak memory.
+        self._slots = threading.BoundedSemaphore(max_concurrent) if max_concurrent else None
         lib = ocr_native()
         token = lib.engine_open(os.fsdecode(os.fspath(profile)), threads)
         super().__init__(token, lib.engine_close)
@@ -38,9 +46,10 @@ class OcrEngine(_Handle):
             return self._recognize(bitmap, max_pixels)
 
     def _recognize(self, bitmap: Bitmap, max_pixels: int | None) -> OcrResult:
-        width, height, dpi_x, dpi_y, lines = ocr_native().recognize(
-            self._require_open(), bitmap._require_open(), max_pixels or 0
-        )
+        with self._slots or contextlib.nullcontext():
+            width, height, dpi_x, dpi_y, lines = ocr_native().recognize(
+                self._require_open(), bitmap._require_open(), max_pixels or 0
+            )
         return OcrResult(
             image_size=(width, height),
             dpi=(dpi_x, dpi_y),

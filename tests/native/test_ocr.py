@@ -9,6 +9,7 @@ import pytest
 
 import pyjpdfium
 from pyjpdfium import errors
+from pyjpdfium.profiles import read_profile
 
 PROFILE = os.environ.get("PYJPDFIUM_OCR_PROFILE")
 pytestmark = [
@@ -50,7 +51,7 @@ def engine():
 
 
 def test_engine_identity(engine):
-    assert engine.profile == "pp-ocrv6-small"
+    assert engine.profile == read_profile(PROFILE).id
     assert engine.runtime_version == "1.30.0"
 
 
@@ -78,7 +79,7 @@ def test_ocr_feeds_the_text_layer(tmp_path, engine):
     pyjpdfium.rasterize_page(page_pdf(tmp_path), 0, png, device="pnggray", raster_dpi=300)
     result = engine.recognize(png)
     layer = tmp_path / "layer.pdf"
-    pyjpdfium.write_text_layer(layer, result.text_lines(), image_size=result.image_size, dpi=300)
+    result.write_text_layer(layer)
     with pyjpdfium.open_document(layer) as document, document.page(0) as page:
         assert " ".join(page.text().split()) == " ".join(LINES)
 

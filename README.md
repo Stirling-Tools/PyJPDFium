@@ -33,10 +33,9 @@ line = TextLine((300, 300, 1500, 400), (TextWord("Hello", (300, 300, 800, 400)),
 pyjpdfium.write_text_layer("text.pdf", [line], image_size=(2550, 3300), dpi=300)
 
 # OCR, when the natives include the OCR module (see JPDFium docs/design/OCR.md).
-with pyjpdfium.OcrEngine("pp-ocrv6-small/") as engine:
+with pyjpdfium.OcrEngine("pp-ocrv6-small-balanced/") as engine:
     result = engine.recognize("page.png")
-    pyjpdfium.write_text_layer("text.pdf", result.text_lines(), image_size=result.image_size,
-                               dpi=300)
+    result.write_text_layer("text.pdf")       # sized to the image, at the image's DPI
 ```
 
 ## Command line and OCRmyPDF
